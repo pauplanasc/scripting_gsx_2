@@ -1,0 +1,60 @@
+version: '3.8'
+
+# Nivel Avanzado: Redes personalizadas
+networks:
+  gsx_network:
+    driver: bridge
+
+# Nivel Básico/Intermedio: Volúmenes para persistencia
+volumes:
+  redis_data:
+
+services:
+  # SERVICIO 1: Base de datos
+  redis:
+    image: redis:7-alpine
+    container_name: gsx_redis
+    restart: always
+    volumes:
+      - redis_data:/data
+    networks:
+      - gsx_network
+    # Nivel Intermedio: Healthcheck
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # SERVICIO 2: Aplicación Node.js
+  backend:
+    build: ./backend
+    container_name: gsx_backend
+    restart: always
+    environment:
+      - PORT=3000
+      - REDIS_HOST=redis
+      - APP_MESSAGE=${APP_MESSAGE}
+    networks:
+      - gsx_network
+    depends_on:
+      redis:
+        condition: service_healthy # Espera a que Redis esté 100% listo
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # SERVICIO 3: Proxy Inverso
+  nginx:
+    build: ./nginx
+    container_name: gsx_nginx
+    restart: always
+    ports:
+      - "${WEB_PORT}:8080"
+    networks:
+      - gsx_network
+    depends_on:
+      backend:
+        condition: service_healthy # Espera a que el backend responda
