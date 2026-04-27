@@ -1,0 +1,9 @@
+{
+  "name": "greendevcorp-simple-app",
+  "version": "1.0.0",
+  "description": "Simple HTTP Server for Docker Week 8",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}
