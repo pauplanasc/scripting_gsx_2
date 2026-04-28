@@ -1,0 +1,54 @@
+name: CI Pipeline (Build & Validate)
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-push:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set Image Tag (Commit SHA)
+        id: vars
+        # Genera un tag único basado en el commit de Git (ej. a1b2c3d)
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Backend
+        uses: docker/build-push-action@v4
+        with:
+          context: ./week_9/backend # Reutilizamos el código de tu semana 9
+          push: true
+          tags: pauplanasc/simple-app-gsx:${{ steps.vars.outputs.sha_short }},pauplanasc/simple-app-gsx:latest
+
+      - name: Build and push Nginx
+        uses: docker/build-push-action@v4
+        with:
+          context: ./week_9/nginx
+          push: true
+          tags: pauplanasc/nginx-gsx:${{ steps.vars.outputs.sha_short }},pauplanasc/nginx-gsx:latest
+
+  terraform-validate:
+    name: Validate IaC Code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: hashicorp/setup-terraform@v2
+      - name: Terraform Format Check
+        run: terraform fmt -check
+        working-directory: ./week_11/terraform
+      - name: Terraform Init
+        run: terraform init -backend=false
+        working-directory: ./week_11/terraform
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: ./week_11/terraform
