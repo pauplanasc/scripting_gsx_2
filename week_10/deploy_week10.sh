@@ -6,6 +6,21 @@ set -euo pipefail
 
 echo "🚀 Iniciando despliegue automatizado de la Semana 10 (Kubernetes)..."
 
+# ==========================================
+# FASE 0: SETUP AUTOMÁTICO
+# ==========================================
+echo "⚙️  Verificando e instalando dependencias (Setup)..."
+# Usamos 'bash' por si acaso el archivo no tiene permisos de ejecución (+x)
+if [ -f "./setup_week10.sh" ]; then
+    bash ./setup_week10.sh
+else
+    echo "⚠️  No se encontró setup_week10.sh en la carpeta. Asegúrate de tener minikube y kubectl instalados."
+fi
+echo "---------------------------------------------------------"
+
+# ==========================================
+# FASE 1: DESPLIEGUE
+# ==========================================
 # 1. Liberar Memoria RAM (Vital para Minikube)
 echo "🧹 Apagando infraestructura de la Semana 9 para liberar RAM..."
 if [ -d "../week_9" ]; then
@@ -15,7 +30,7 @@ fi
 # 2. Iniciar Minikube si no está encendido
 echo "⚙️  Comprobando el clúster de Minikube..."
 if ! minikube status >/dev/null 2>&1; then
-    echo "⏳ Iniciando Minikube (esto puede tardar 1 o 2 minutos)..."
+    echo "⏳ Iniciando Minikube (esto puede tardar un par de minutos)..."
     minikube start --driver=docker
 else
     echo "✅ Minikube ya está en ejecución."
@@ -37,6 +52,6 @@ kubectl get pods
 MINIKUBE_IP=$(minikube ip)
 echo "========================================================="
 echo "✅ ¡INFRAESTRUCTURA DE LA SEMANA 10 DESPLEGADA CON ÉXITO!"
-echo "👉 Prueba tu web externa ejecutando:"
+echo "👉 Prueba tu web externa simulando un cliente real:"
 echo "   curl http://$MINIKUBE_IP:30080"
 echo "========================================================="
