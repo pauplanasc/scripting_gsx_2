@@ -1,37 +1,50 @@
 #!/bin/bash
 # deploy_week9.sh
-# Propósito: Automatizar el despliegue del stack de la Semana 9 usando Docker Compose.
+# Propósito: Automatizar el despliegue de la Semana 9 previniendo conflictos de puertos.
 
 set -euo pipefail
 
 echo "🚀 Iniciando despliegue automatizado de la Semana 9 (Docker Compose)..."
 
+# ==========================================
+# 🛡️ FASE 0: PREVENCIÓN DE ERRORES (ANTI-OKUPAS)
+# ==========================================
+echo "🛡️ Verificando y liberando puertos necesarios..."
+
+# 1. Detectar y apagar Nginx nativo de la máquina virtual (Debian)
+if systemctl is-active --quiet nginx; then
+    echo "⚠️  Detectado Nginx nativo en ejecución. Apagándolo..."
+    sudo systemctl stop nginx
+fi
+
+# 2. Detectar y borrar contenedores huérfanos de la Semana 8
+echo "🧹 Limpiando contenedores individuales que puedan generar conflictos..."
+docker rm -f prod_nginx prod_simple_app 2>/dev/null || true
+
+# 3. Limpiar la orquesta anterior de la Semana 9 por si quedó a medias
+docker compose down 2>/dev/null || true
+echo "✅ Entorno despejado y listo."
+# ==========================================
+
 # 1. Gestionar las variables de entorno (Idempotencia)
 if [ ! -f .env ]; then
     echo "⚠️ No se encontró el archivo .env real. Creando uno a partir de .env.example..."
     cp .env.example .env
-    echo "✅ Archivo .env generado. (Recuerda que este archivo no se sube a Git)."
-else
-    echo "✅ Archivo .env detectado."
 fi
 
-# 2. Limpieza: Apagar la infraestructura anterior si estaba corriendo
-echo "🧹 Limpiando el entorno (apagando contenedores previos)..."
-docker compose down
-
-# 3. Despliegue: Construir y levantar
-# Usamos --build para asegurarnos de que si cambiaste algo en server.js o nginx.conf, se aplique.
+# 2. Despliegue: Construir y levantar
 echo "🏗️ Construyendo imágenes y levantando la orquesta..."
-docker compose up -d --build
+# Silenciamos los warnings de 'version obsolete' para una salida más limpia
+docker compose up -d --build 2> >(grep -v "version\` is obsolete" >&2)
 
-# 4. Verificación: Esperar a los healthchecks
-echo "⏳ Esperando 10 segundos para que los servicios arranquen y pasen los Healthchecks..."
-sleep 10
+# 3. Verificación: Esperar a los healthchecks
+echo "⏳ Esperando 15 segundos para que los servicios arranquen y pasen los Healthchecks..."
+sleep 15
 
 echo "📊 Estado actual de los contenedores:"
 docker compose ps
 
-# 5. Prueba de fuego final
+# 4. Prueba de fuego final
 echo "========================================================="
 echo "🌐 Prueba de conexión simulando un usuario:"
 echo "---------------------------------------------------------"
