@@ -1,9 +1,28 @@
 #!/bin/bash
 # verify_week8.sh
-# Propósito: Verificar que la infraestructura de la Semana 8 está funcionando.
+# Propósito: Preparar el entorno automáticamente y verificar la Semana 8.
 
-echo "🔍 Iniciando verificación de la Semana 8..."
-echo "----------------------------------------"
+set -euo pipefail
+
+echo "⚙️  Fase 1: PREPARANDO EL ENTORNO PARA LA SEMANA 8..."
+echo "----------------------------------------------------"
+
+# 1. Apagar la Semana 9 si está encendida (para liberar puertos)
+if [ -d "../week_9" ]; then
+    echo "🛑 Apagando contenedores de la Semana 9 (Docker Compose)..."
+    cd ../week_9
+    docker compose down 2>/dev/null || true
+    cd ../week_8
+fi
+
+# 2. Desplegar la Semana 8
+echo "🏗️  Levantando infraestructura de la Semana 8..."
+./deploy_week8.sh > /dev/null 2>&1
+echo "✅ Entorno preparado."
+echo ""
+
+echo "🔍 Fase 2: INICIANDO VERIFICACIÓN..."
+echo "----------------------------------------------------"
 
 # 1. Verificar si los contenedores están corriendo
 if docker ps | grep -q "prod_simple_app"; then
@@ -19,7 +38,7 @@ else
 fi
 
 # 2. Verificar las respuestas de red (cURL)
-echo "----------------------------------------"
+echo "----------------------------------------------------"
 echo "🌐 Verificando puertos y respuestas web..."
 
 # Probar Node.js (Puerto 3000)
@@ -38,5 +57,5 @@ else
     echo "❌ ERROR en Puerto 80: Respuesta incorrecta o sin conexión."
 fi
 
-echo "----------------------------------------"
-echo "🏁 Verificación de la Semana 8 completada."
+echo "----------------------------------------------------"
+echo "🏁 Verificación de la Semana 8 completada con éxito."
