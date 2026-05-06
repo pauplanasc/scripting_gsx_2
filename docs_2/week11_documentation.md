@@ -20,20 +20,23 @@ Separamos CI y CD por una restricción real del enunciado: **GitHub Actions no t
 ## 2. Estructura del código
 
 ```
-week_11/
-├── terraform/
-│   ├── providers.tf           # Provider hashicorp/kubernetes apuntando a minikube
-│   ├── variables.tf           # environment, app_message, image_tag, replica_count
-│   ├── main.tf                # Namespace, ConfigMap, Redis, Backend, Nginx (+ Services)
-│   ├── outputs.tf             # namespace, image_tag, replicas, NodePort, access_hint
-│   └── environments/
-│       ├── dev.tfvars         # 1 replica, mensaje "DESARROLLO"
-│       └── staging.tfvars     # 2 replicas, mensaje "STAGING"
-├── .github/workflows/ci.yml   # Build & push imágenes + validate Terraform
-├── deploy_week11.sh           # Setup completo (instala terraform si falta) + apply
-├── local_cd.sh                # Solo apply (asume terraform ya instalado)
-└── verify_week11.sh           # Comprueba namespace, pods Ready, curl OK e idempotencia
+scripting_gsx_2/
+├── .github/workflows/ci.yml       # Workflow de GitHub Actions (DEBE estar en raíz)
+└── week_11/
+    ├── terraform/
+    │   ├── providers.tf           # Provider hashicorp/kubernetes apuntando a minikube
+    │   ├── variables.tf           # environment, app_message, image_tag, replica_count
+    │   ├── main.tf                # Namespace, ConfigMap, Redis, Backend, Nginx (+ Services)
+    │   ├── outputs.tf             # namespace, image_tag, replicas, NodePort, access_hint
+    │   └── environments/
+    │       ├── dev.tfvars         # 1 replica, mensaje "DESARROLLO"
+    │       └── staging.tfvars     # 2 replicas, mensaje "STAGING"
+    ├── deploy_week11.sh           # Setup completo (instala terraform si falta) + apply
+    ├── local_cd.sh                # Solo apply (asume terraform ya instalado)
+    └── verify_week11.sh           # Comprueba namespace, pods Ready, curl OK e idempotencia
 ```
+
+> **Nota importante**: GitHub Actions sólo detecta workflows en `.github/workflows/` desde la **raíz del repositorio**. Por eso este archivo NO puede vivir dentro de `week_11/.github/`. Las rutas internas del workflow (`./week_9/backend`, `./week_11/terraform`, etc.) son relativas a la raíz.
 
 ### Variables (`variables.tf`)
 | Variable | Tipo | Por qué |
