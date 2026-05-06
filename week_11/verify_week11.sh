@@ -5,8 +5,9 @@
 set -euo pipefail
 
 ENV=${1:-dev}
+IMAGE_TAG=${2:-latest}
 
-echo "🔍 Iniciando verificación de la Semana 11 para el entorno: [$ENV]..."
+echo "🔍 Iniciando verificación de la Semana 11 para el entorno: [$ENV] con tag [$IMAGE_TAG]..."
 echo "----------------------------------------------------"
 
 # 1. Comprobar motor de K8s
@@ -47,7 +48,7 @@ fi
 echo "----------------------------------------------------"
 echo "⚖️  Comprobando Idempotencia del Código Terraform..."
 cd terraform
-if terraform plan -var-file="environments/${ENV}.tfvars" -var="image_tag=latest" | grep -q "No changes."; then
+if terraform plan -var-file="environments/${ENV}.tfvars" -var="image_tag=${IMAGE_TAG}" | grep -q "No changes."; then
     echo "✅ Idempotencia Exitosa: La infraestructura física coincide EXACTAMENTE con el código."
 else
     echo "⚠️  Aviso: Terraform detectó diferencias entre el código y la realidad."
