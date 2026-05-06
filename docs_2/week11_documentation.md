@@ -92,11 +92,27 @@ Mantenemos **un único `main.tf`** y parametrizamos las diferencias en `environm
 
 Esto evita el anti-patrón de copiar y pegar manifiestos: si añades un recurso, se aplica a todos los entornos automáticamente.
 
+### Aislamiento de estado: Terraform Workspaces
+
+Compartir un único `terraform.tfstate` entre entornos es un anti-patrón: cuando cambias `environment` de `dev` a `staging`, Terraform piensa que los recursos "han cambiado de namespace" y los **destruye y recrea**, así que no pueden coexistir.
+
+La solución estándar son los **workspaces**: cada entorno tiene su propio fichero de estado (en `.terraform/terraform.tfstate.d/<workspace>/terraform.tfstate`), pero comparten el mismo código. `local_cd.sh` y `deploy_week11.sh` se encargan de seleccionar/crear el workspace correcto antes del apply:
+
+```bash
+if terraform workspace list | grep -qE "^[* ]+${ENV}$"; then
+    terraform workspace select "$ENV"
+else
+    terraform workspace new "$ENV"
+fi
+```
+
+Resultado: `gsx-dev` y `gsx-staging` viven simultáneamente en Minikube y se pueden testar/promocionar por separado.
+
 ### How do you ensure staging is tested before prod?
-1. **Aislamiento físico**: cada entorno vive en su propio namespace, así un fallo en `gsx-dev` no toca `gsx-staging`. NetworkPolicies (semana 12) reforzarán esto a nivel de red.
-2. **Promoción por tag inmutable**: en CI publicamos tags por SHA. Para "promocionar" a staging, aplicamos exactamente el mismo SHA que ha estado corriendo en dev. No reconstruimos: si dev funciona con `:abc1234`, staging usa `:abc1234`.
+1. **Aislamiento físico de estado y namespace**: cada entorno tiene su propio workspace de Terraform (`dev`/`staging`) y vive en su propio namespace de K8s (`gsx-dev`/`gsx-staging`). Un apply en uno no toca el otro.
+2. **Promoción por tag inmutable**: la CI publica tags por SHA. Para "promocionar" a staging, aplicamos exactamente el mismo SHA que ha estado corriendo en dev. No reconstruimos: si dev funciona con `:abc1234`, staging usa `:abc1234`.
 3. **Misma definición, distinta escala**: staging usa el mismo `main.tf`, solo cambia `replica_count` y mensaje. Si el deploy a dev funciona con 1 réplica, en staging con 2 replicamos el comportamiento bajo carga modesta antes de tocar prod.
-4. **Plan antes de apply**: el `terraform plan` que ejecuta `terraform apply` muestra el diff antes de tocar nada; si el diff incluye recursos inesperados, abortas.
+4. **Plan antes de apply** (`-detailed-exitcode`): `verify_week11.sh` ejecuta un `terraform plan` con `-detailed-exitcode` que devuelve `0` si no hay cambios, `2` si hay drift. Cualquier diff inesperado se ve antes de aplicar.
 
 ## 5. Pipeline de CI/CD (`.github/workflows/ci.yml`)
 

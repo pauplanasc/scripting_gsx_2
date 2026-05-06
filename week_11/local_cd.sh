@@ -1,33 +1,42 @@
 #!/bin/bash
-# local_cd.sh - CD Manual para aplicar IaC a Minikube
+# local_cd.sh - CD manual a Minikube usando Terraform workspaces (uno por entorno)
 
 set -euo pipefail
 
-# Comprobar argumento (dev o staging)
 ENV=${1:-dev}
 IMAGE_TAG=${2:-latest}
 
-echo "🚀 Iniciando Continuous Deployment local para entorno: [$ENV] con tag [$IMAGE_TAG]"
+echo "🚀 Continuous Deployment local: entorno=[$ENV] tag=[$IMAGE_TAG]"
 
-# 1. Asegurar que Minikube corre
+# 1. Asegurar Minikube
 if ! minikube status >/dev/null 2>&1; then
-    echo "Encendiendo Minikube..."
+    echo "⏳ Iniciando Minikube..."
     minikube start --driver=docker
 fi
 
-# 2. Aplicar IaC con Terraform
 cd terraform
-echo "⚙️ Inicializando Terraform..."
-terraform init -upgrade
 
-echo "🏗️ Aplicando infraestructura declarativa..."
+# 2. Init
+echo "⚙️  terraform init..."
+terraform init -upgrade >/dev/null
+
+# 3. Workspace por entorno (estado aislado: dev y staging pueden convivir)
+if terraform workspace list | grep -qE "^[* ]+${ENV}$"; then
+    terraform workspace select "$ENV"
+else
+    terraform workspace new "$ENV"
+fi
+echo "📦 Workspace activo: $(terraform workspace show)"
+
+# 4. Apply
+echo "🏗️  terraform apply..."
 terraform apply -var-file="environments/${ENV}.tfvars" -var="image_tag=${IMAGE_TAG}" -auto-approve
 
-# 3. Mostrar acceso
+# 5. Reportar URL
 MINIKUBE_IP=$(minikube ip)
 NODE_PORT=$(kubectl get svc nginx-service -n "gsx-${ENV}" -o jsonpath='{.spec.ports[0].nodePort}')
 
 echo "====================================================="
-echo "✅ Despliegue en $ENV completado con éxito."
+echo "✅ Despliegue en $ENV completado."
 echo "🌐 URL: http://$MINIKUBE_IP:$NODE_PORT"
 echo "====================================================="
