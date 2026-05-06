@@ -5,10 +5,12 @@
 
 set -uo pipefail
 
-NS=${1:-gsx-dev}
-OTHER_NS=$([ "$NS" = "gsx-dev" ] && echo "gsx-staging" || echo "gsx-dev")
+ENV=${1:-dev}
+NS="gsx-${ENV}"
+OTHER_ENV=$([ "$ENV" = "dev" ] && echo "staging" || echo "dev")
+OTHER_NS="gsx-${OTHER_ENV}"
 
-echo "🔍 Verificacion NetworkPolicies en namespace [$NS]"
+echo "🔍 Verificacion NetworkPolicies en namespace [$NS] (env=$ENV)"
 echo "===================================================="
 
 PASS=0
@@ -84,7 +86,7 @@ echo "🏁 Resumen $NS: $PASS PASS, $FAIL FAIL"
 
 if [ "$FAIL" -eq 0 ]; then
     echo "✅ TODAS LAS POLITICAS FUNCIONAN COMO SE ESPERABA"
-    echo "ℹ️  Repite con: bash $(basename "$0") $OTHER_NS"
+    echo "ℹ️  Repite con: bash $(basename "$0") $OTHER_ENV"
 else
     echo "⚠️  Algun test no salio como se esperaba. Revisa la politica relacionada."
     exit 1
