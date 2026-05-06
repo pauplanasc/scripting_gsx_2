@@ -1,0 +1,12 @@
+# Default deny: corta TODO el trafico ingress y egress de cada pod del namespace.
+# Esta es la base de "default-deny": empezamos cerrando todo y luego abrimos
+# solo lo que justifique cada politica explicita.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+spec:
+  podSelector: {}        # selector vacio = aplica a TODOS los pods del ns
+  policyTypes:
+    - Ingress
+    - Egress

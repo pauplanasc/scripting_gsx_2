@@ -1,0 +1,44 @@
+# El backend recibe trafico SOLO desde nginx, y habla SOLO con redis.
+# Cualquier otro pod del cluster (incluido un pod malicioso en otro namespace)
+# queda bloqueado por el default-deny + estas reglas explicitas.
+
+# 1) Ingress de backend desde nginx (3000)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-ingress-from-nginx
+spec:
+  podSelector:
+    matchLabels:
+      app: backend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: nginx
+      ports:
+        - protocol: TCP
+          port: 3000
+
+---
+# 2) Egress de backend hacia redis (6379)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backend-egress-to-redis
+spec:
+  podSelector:
+    matchLabels:
+      app: backend
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - protocol: TCP
+          port: 6379

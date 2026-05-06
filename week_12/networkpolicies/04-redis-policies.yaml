@@ -1,0 +1,21 @@
+# Redis es la capa de datos. Solo el backend del MISMO namespace puede llegar.
+# No definimos politica de egress: redis no necesita salir a ningun lado
+# (queda cubierto por el default-deny: no sale a ninguna parte).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis-ingress-from-backend
+spec:
+  podSelector:
+    matchLabels:
+      app: redis
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: backend
+      ports:
+        - protocol: TCP
+          port: 6379

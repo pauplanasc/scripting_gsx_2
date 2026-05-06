@@ -1,0 +1,40 @@
+# NIVEL INTERMEDIO: politica con reglas CIDR + puertos.
+# Ejemplo de como restringiriamos el ingress externo a nginx por origen:
+# en lugar de "desde cualquier sitio", solo permitir oficinas internas y un
+# rango de partners aprobados, excluyendo una IP comprometida.
+#
+# IMPORTANTE: este archivo es DEMOSTRATIVO y NO se aplica por defecto en
+# deploy_week12.sh, porque colision con la politica abierta de 02-nginx
+# (las dos son aditivas, asi que no restringe). Para usarla en serio
+# habria que ELIMINAR el ingress abierto de 02-nginx-policies.yaml.
+#
+# Ilustra la sintaxis para CIDR ipBlock + except + multiples bloques + port.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nginx-partners-cidr-restricted
+spec:
+  podSelector:
+    matchLabels:
+      app: nginx
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        # Oficina A (Barcelona)
+        - ipBlock:
+            cidr: 10.0.20.0/24
+        # Oficina B (Madrid)
+        - ipBlock:
+            cidr: 10.0.21.0/24
+        # Partners externos aprobados, salvo IP comprometida
+        - ipBlock:
+            cidr: 10.0.10.0/24
+            except:
+              - 10.0.10.99/32   # IP de partner comprometido, denegada
+        # Red del host de Minikube (para que la VM siga llegando al NodePort en pruebas)
+        - ipBlock:
+            cidr: 192.168.49.0/24
+      ports:
+        - protocol: TCP
+          port: 8080

@@ -1,0 +1,24 @@
+# Sin DNS, los pods no pueden resolver "backend", "redis", etc., asi que
+# ningun service-name funciona. Esta es la primera excepcion al default-deny.
+# Permitimos UDP y TCP en el puerto 53 hacia los pods de kube-dns en kube-system.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+spec:
+  podSelector: {}        # aplica a todos los pods del ns
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
