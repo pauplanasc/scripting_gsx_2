@@ -1,25 +1,122 @@
-# 🏗️ Week 11: Infrastructure as Code & CI/CD
+# Week 11: Infrastructure as Code & CI/CD
 
-## 1. Conceptos Clave y Tooling
+## 1. Conceptos clave
 
-**What’s Infrastructure as Code? Why does it matter?**
-IaC significa escribir código legible por humanos y máquinas (ej. HCL o YAML) que define y aprovisiona la infraestructura. Es vital porque elimina el "error humano" de hacer clics manuales o lanzar comandos sueltos, permite versionar la infraestructura (saber quién cambió qué y cuándo) y hace que los entornos sean 100% reproducibles desde cero en minutos.
+### What is Infrastructure as Code? Why does it matter?
+IaC consiste en describir la infraestructura mediante código versionable (en nuestro caso HCL de Terraform) en vez de hacerlo a base de clics o `kubectl apply` manuales. Importa por tres motivos: **reproducibilidad** (un compañero clona el repo y levanta el stack idéntico), **trazabilidad** (cada cambio queda en `git log` con autor y fecha) y **fiabilidad** (el plan se revisa antes de aplicarse, evitando errores manuales).
 
-**Terraform (Declarative) vs. Ansible (Procedural)**
-* Hemos elegido **Terraform** porque es **Declarativo**. Tú le dices "Quiero 3 servidores y una red", y Terraform averigua *cómo* hacerlo. Si la red ya existe, no la vuelve a crear.
-* **Ansible** (aunque puede ser idempotente) es inherentemente **Procedural**. Le das instrucciones paso a paso: "Crea el servidor 1, crea la red 2, conecta esto con aquello". Terraform es el estándar para *crear* recursos en K8s y Cloud, mientras que Ansible es mejor para *configurar* sistemas operativos por dentro.
+### Terraform (declarative) vs. Ansible (procedural)
+- **Terraform** (elegido) es **declarativo**: describes el estado deseado (`replica_count = 2`, `namespace = "gsx-dev"`) y Terraform calcula el diff con el estado real para aplicarlo. Si los recursos ya existen como tú quieres, no hace nada (idempotencia natural).
+- **Ansible** es **procedural**: escribes pasos ordenados. Es más fuerte en configuración del SO de un host (instalar paquetes, copiar archivos), pero más débil para crear y mantener grafos de recursos en K8s.
 
-**What does a CI/CD pipeline do?**
-* **CI (Continuous Integration):** Se dispara automáticamente. En nuestro caso (GitHub Actions), cada `git push` compila el código, crea las imágenes Docker inmutables, las sube al Registry (DockerHub) etiquetadas con el SHA del commit, y valida la sintaxis de Terraform (`terraform validate`).
-* **CD (Continuous Deployment/Delivery):** Es el proceso de coger ese artefacto validado y aplicarlo en el entorno final (Minikube). 
+Para este caso (crear y mantener recursos K8s sobre Minikube) Terraform encaja mejor: el provider `hashicorp/kubernetes` mapea 1-a-1 con la API de Kubernetes y nos da un `terraform plan` que muestra exactamente qué va a cambiar.
 
-## 2. Flujo de Trabajo (End-to-End)
-Nuestro flujo de trabajo resuelve la limitación de que GitHub Actions no puede acceder a nuestro Minikube local:
-1.  **Code & Push:** Un desarrollador modifica la app en `week_9/backend/server.js` y hace un `git push`.
-2.  **CI Pipeline (GitHub):** Actions detecta el push, construye la nueva imagen Docker (`pauplanasc/simple-app-gsx:a1b2c3d`) y la sube a DockerHub. Verifica que el código `.tf` no tiene errores de sintaxis.
-3.  **Local CD (Máquina Local):** El SysAdmin abre la terminal y ejecuta `./local_cd.sh staging a1b2c3d`. Terraform lee el estado actual de Minikube, nota que la versión de la imagen ha cambiado, y actualiza el Deployment en Kubernetes sin cortes de servicio.
+### What does a CI/CD pipeline do?
+- **CI** (en GitHub Actions): cada `push` a `main` construye las imágenes Docker (backend y nginx), las publica en Docker Hub con dos tags (`<commit-sha>` y `latest`) y valida el código Terraform (`fmt`, `init -backend=false`, `validate`).
+- **CD** (local): el ingeniero ejecuta `bash local_cd.sh <env> <tag>` en su máquina, Terraform compara el estado real de Minikube con el deseado y aplica solo el delta (típicamente, cambiar el `image_tag` del Deployment).
 
-## 3. Multiple Environments (Intermediate)
-En lugar de copiar y pegar manifiestos YAML enteros, usamos **Terraform Variables (`.tfvars`)**.
-* Con un solo código base (`main.tf`), podemos desplegar una versión barata y con mensajes de depuración ejecutando `-var-file="environments/dev.tfvars"`.
-* Para asegurar que *staging* funciona antes de producción, aplicamos exactamente el mismo código base, pero inyectando `staging.tfvars` (que despliega más réplicas en un Namespace K8s separado, simulando carga de producción real).
+Separamos CI y CD por una restricción real del enunciado: **GitHub Actions no tiene acceso al Minikube local**, así que el "deploy" lo lanzamos a mano contra el cluster de la VM.
+
+## 2. Estructura del código
+
+```
+week_11/
+├── terraform/
+│   ├── providers.tf           # Provider hashicorp/kubernetes apuntando a minikube
+│   ├── variables.tf           # environment, app_message, image_tag, replica_count
+│   ├── main.tf                # Namespace, ConfigMap, Redis, Backend, Nginx (+ Services)
+│   ├── outputs.tf             # namespace, image_tag, replicas, NodePort, access_hint
+│   └── environments/
+│       ├── dev.tfvars         # 1 replica, mensaje "DESARROLLO"
+│       └── staging.tfvars     # 2 replicas, mensaje "STAGING"
+├── .github/workflows/ci.yml   # Build & push imágenes + validate Terraform
+├── deploy_week11.sh           # Setup completo (instala terraform si falta) + apply
+├── local_cd.sh                # Solo apply (asume terraform ya instalado)
+└── verify_week11.sh           # Comprueba namespace, pods Ready, curl OK e idempotencia
+```
+
+### Variables (`variables.tf`)
+| Variable | Tipo | Por qué |
+|---|---|---|
+| `environment` | string | Nombre del entorno; se usa para construir el namespace `gsx-${environment}` |
+| `app_message` | string | Mensaje servido por el backend (inyectado vía ConfigMap) |
+| `image_tag` | string (default `latest`) | Tag Docker; en CD lo pasamos al SHA del commit que produjo la CI |
+| `replica_count` | number | Réplicas del backend; permite simular carga en staging |
+
+### Outputs (`outputs.tf`)
+- `namespace`: el namespace creado (útil para `kubectl -n <ns>`).
+- `image_tag_deployed`: deja constancia de qué tag está corriendo realmente.
+- `backend_replicas`: feedback inmediato del fan-out.
+- `nginx_node_port`: el puerto que Minikube ha asignado.
+- `access_hint`: comando listo para copiar/pegar y obtener la URL.
+
+## 3. Cómo desplegar (paso a paso)
+
+### Despliegue desde cero
+```bash
+# 1. (Local CD) Levantar Minikube y aplicar IaC
+cd ~/scripting_gsx_2/week_11
+bash deploy_week11.sh dev latest         # entorno dev con tag :latest
+# o:
+bash deploy_week11.sh staging <sha7>     # entorno staging con un SHA específico
+
+# 2. Verificar
+bash verify_week11.sh dev
+```
+
+### Despliegue tras un cambio de código
+1. Modificas algo en `week_9/backend/server.js` (o `Dockerfile`, o `main.tf`).
+2. `git push origin main`.
+3. La CI construye y publica `pauplanasc/simple-app-gsx:<sha>` y `:latest`.
+4. Cuando la CI esté en verde, desde la VM:
+   ```bash
+   bash local_cd.sh dev <sha7>
+   ```
+   Terraform detecta que el `image` del Deployment ha cambiado y hace un rolling update.
+
+### Cómo se elige el image tag
+La CI publica **dos tags** por imagen: el SHA corto del commit (inmutable, ideal para reproducibilidad) y `latest` (cómodo para pruebas rápidas). El SHA se calcula con `git rev-parse --short HEAD` en el step "Set Image Tag". En el CD lo pasamos como `-var="image_tag=<sha>"`, que sustituye `${var.image_tag}` en el atributo `image` de los `kubernetes_deployment`.
+
+## 4. Multiple Environments (Intermediate **)
+
+Mantenemos **un único `main.tf`** y parametrizamos las diferencias en `environments/<env>.tfvars`:
+
+| | dev | staging |
+|---|---|---|
+| Namespace | `gsx-dev` | `gsx-staging` |
+| Réplicas backend | 1 | 2 |
+| Mensaje | "Entorno de DESARROLLO (Inestable)" | "Entorno de STAGING (Copia exacta de Prod)" |
+
+Esto evita el anti-patrón de copiar y pegar manifiestos: si añades un recurso, se aplica a todos los entornos automáticamente.
+
+### How do you ensure staging is tested before prod?
+1. **Aislamiento físico**: cada entorno vive en su propio namespace, así un fallo en `gsx-dev` no toca `gsx-staging`. NetworkPolicies (semana 12) reforzarán esto a nivel de red.
+2. **Promoción por tag inmutable**: en CI publicamos tags por SHA. Para "promocionar" a staging, aplicamos exactamente el mismo SHA que ha estado corriendo en dev. No reconstruimos: si dev funciona con `:abc1234`, staging usa `:abc1234`.
+3. **Misma definición, distinta escala**: staging usa el mismo `main.tf`, solo cambia `replica_count` y mensaje. Si el deploy a dev funciona con 1 réplica, en staging con 2 replicamos el comportamiento bajo carga modesta antes de tocar prod.
+4. **Plan antes de apply**: el `terraform plan` que ejecuta `terraform apply` muestra el diff antes de tocar nada; si el diff incluye recursos inesperados, abortas.
+
+## 5. Pipeline de CI/CD (`.github/workflows/ci.yml`)
+
+### Qué pasa en un `push` a `main`
+1. **Job `build-and-push`** (paralelo al de validación):
+   - Calcula `sha_short`.
+   - Login en Docker Hub usando los secrets `DOCKERHUB_USERNAME` y `DOCKERHUB_TOKEN`.
+   - Build & push de `pauplanasc/simple-app-gsx:<sha>` y `:latest` desde `week_9/backend`.
+   - Build & push de `pauplanasc/nginx-gsx:<sha>` y `:latest` desde `week_9/nginx`.
+2. **Job `terraform-validate`**:
+   - `terraform fmt -check` (estilo).
+   - `terraform init -backend=false` (sin tocar estado remoto).
+   - `terraform validate` (sintaxis y referencias).
+
+Si cualquier job falla, la PR/commit queda marcado en rojo y no procedemos al CD local.
+
+### Qué NO hace la CI
+**No** ejecuta `terraform apply` contra Minikube — Minikube vive en la VM del estudiante, fuera del runner de GitHub. El apply se lanza a mano con `local_cd.sh`.
+
+## 6. Setup necesario una sola vez
+
+En GitHub → Settings → Secrets and variables → Actions, definir:
+- `DOCKERHUB_USERNAME`: tu usuario de Docker Hub.
+- `DOCKERHUB_TOKEN`: un Personal Access Token de Docker Hub (Account Settings → Security → New Access Token, permisos Read/Write).
+
+Sin estos secretos, el step `Login to DockerHub` falla y nunca se publica `:latest`, lo que provoca el `ImagePullBackOff` que vimos.
