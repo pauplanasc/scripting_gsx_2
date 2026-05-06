@@ -53,6 +53,14 @@ scripting_gsx_2/
 - `nginx_node_port`: el puerto que Minikube ha asignado.
 - `access_hint`: comando listo para copiar/pegar y obtener la URL.
 
+### Calidad de los Deployments (heredado de semana 10)
+
+`main.tf` no es solo un wrapper de los manifiestos: incluye buenas prácticas de K8s para asegurar disponibilidad y eficiencia:
+
+- **`liveness_probe`** en cada contenedor — si el proceso se cuelga, K8s lo reinicia. Backend usa TCP socket (no HTTP, porque "/" devuelve 500 si Redis cae y matar el backend no soluciona un fallo de Redis); Nginx y Redis usan TCP.
+- **`readiness_probe`** en backend (HTTP a "/") y Redis (`redis-cli ping`) — solo enrutamos tráfico cuando el pod realmente puede servirlo. Sin esto, durante un rolling update Nginx mandaría requests a backends a medio arrancar.
+- **`resources.requests` / `resources.limits`** en todos los contenedores (CPU + memoria) — el scheduler sabe dónde caben los pods, y un pod desbocado no se come todo el nodo.
+
 ## 3. Cómo desplegar (paso a paso)
 
 ### Despliegue desde cero
@@ -63,9 +71,18 @@ bash deploy_week11.sh dev latest         # entorno dev con tag :latest
 # o:
 bash deploy_week11.sh staging <sha7>     # entorno staging con un SHA específico
 
-# 2. Verificar
-bash verify_week11.sh dev
+# 2. Verificar (pasa el MISMO tag al verify para que la idempotencia sea correcta)
+bash verify_week11.sh dev latest
+bash verify_week11.sh staging <sha7>
 ```
+
+### Qué comprueba `verify_week11.sh`
+
+1. **Minikube en ejecución** — si no, lo arranca automáticamente.
+2. **El namespace `gsx-<env>` existe** — confirma que Terraform ya aplicó.
+3. **Rollouts completos** — `kubectl rollout status` para Redis, backend y Nginx (con timeout 120s).
+4. **Conectividad externa** — un `curl` real al NodePort que devuelve un mensaje con `Entorno` y `visitante` (esto último prueba que Redis está vivo y el contador funciona).
+5. **Idempotencia** — `terraform plan -detailed-exitcode` con el mismo tfvars + tag que se aplicó: exit `0` = sin diff, exit `2` = drift (muestra las últimas 30 líneas del plan para diagnóstico).
 
 ### Despliegue tras un cambio de código
 1. Modificas algo en `week_9/backend/server.js` (o `Dockerfile`, o `main.tf`).
