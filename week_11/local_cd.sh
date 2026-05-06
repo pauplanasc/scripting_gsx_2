@@ -21,11 +21,7 @@ echo "⚙️  terraform init..."
 terraform init -upgrade >/dev/null
 
 # 3. Workspace por entorno (estado aislado: dev y staging pueden convivir)
-if terraform workspace list | grep -qE "^[* ]+${ENV}$"; then
-    terraform workspace select "$ENV"
-else
-    terraform workspace new "$ENV"
-fi
+terraform workspace select "$ENV" 2>/dev/null || terraform workspace new "$ENV"
 echo "📦 Workspace activo: $(terraform workspace show)"
 
 # 4. Apply

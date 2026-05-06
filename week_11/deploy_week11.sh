@@ -44,11 +44,7 @@ cd terraform
 echo "⚙️  terraform init..."
 terraform init -upgrade >/dev/null
 
-if terraform workspace list | grep -qE "^[* ]+${ENV}$"; then
-    terraform workspace select "$ENV"
-else
-    terraform workspace new "$ENV"
-fi
+terraform workspace select "$ENV" 2>/dev/null || terraform workspace new "$ENV"
 echo "📦 Workspace activo: $(terraform workspace show)"
 
 echo "🏗️  terraform apply para entorno $ENV..."
