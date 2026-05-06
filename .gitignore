@@ -1,0 +1,33 @@
+# --- Terraform ---
+# El cache de plugins y providers (se reconstruye con `terraform init`)
+**/.terraform/
+# El lock-file de versiones de providers SI se commitea (es deseable),
+# así que NO lo ignoramos.
+
+# Estado de Terraform: contiene infraestructura desplegada y posibles secretos.
+# NUNCA debe ir al repo. Vive solo en la máquina que ejecuta apply.
+**/*.tfstate
+**/*.tfstate.*
+
+# Variables locales con secretos (si alguien crea uno)
+**/*.auto.tfvars
+**/secrets.tfvars
+
+# Plan files
+**/*.tfplan
+
+# --- Docker / Kubernetes ---
+# Helpers de instalación que se descargan y no son parte del código
+get-docker.sh
+
+# --- Entornos ---
+# Variables sensibles
+.env
+**/.env
+
+# --- Editores y SO ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
