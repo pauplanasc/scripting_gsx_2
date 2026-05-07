@@ -10,6 +10,11 @@ NS="gsx-${ENV}"
 OTHER_ENV=$([ "$ENV" = "dev" ] && echo "staging" || echo "dev")
 OTHER_NS="gsx-${OTHER_ENV}"
 
+# Cambiar al directorio del script para que las rutas relativas funcionen aunque
+# se invoque por ruta absoluta desde cualquier cwd.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 echo "🔍 Verificacion NetworkPolicies en namespace [$NS] (env=$ENV)"
 echo "===================================================="
 

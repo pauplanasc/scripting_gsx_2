@@ -7,6 +7,11 @@ set -uo pipefail
 ENV=${1:-dev}
 IMAGE_TAG=${2:-latest}
 
+# Cambiar al directorio del script asi 'cd terraform' funciona aunque se invoque
+# por ruta absoluta desde cualquier cwd.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 echo "🔍 Verificación Semana 11: entorno=[$ENV] tag=[$IMAGE_TAG]"
 echo "----------------------------------------------------"
 
