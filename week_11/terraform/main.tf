@@ -1,8 +1,13 @@
 # Namespace dedicado por entorno (gsx-dev, gsx-staging) para aislar
 # completamente los recursos de cada entorno y demostrar segmentacion.
+# La label "environment" la usa la semana 12 para namespaceSelector y para
+# que verify_week11 no detecte drift al pasarle deploy_week12 con kubectl label.
 resource "kubernetes_namespace" "env_namespace" {
   metadata {
     name = "gsx-${var.environment}"
+    labels = {
+      environment = var.environment
+    }
   }
 }
 

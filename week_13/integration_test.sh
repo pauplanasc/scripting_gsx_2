@@ -104,10 +104,10 @@ echo "----------------------------------------------------"
 
 cd "$REPO_ROOT/week_11"
 echo "▶️  verify_week11.sh dev $IMAGE_TAG"
-bash verify_week11.sh dev "$IMAGE_TAG" 2>&1 | grep -E "✅|❌|⚠️|✔|✗"
+bash verify_week11.sh dev "$IMAGE_TAG" 2>&1 | tail -25
 echo ""
 echo "▶️  verify_week11.sh staging $IMAGE_TAG"
-bash verify_week11.sh staging "$IMAGE_TAG" 2>&1 | grep -E "✅|❌|⚠️|✔|✗"
+bash verify_week11.sh staging "$IMAGE_TAG" 2>&1 | tail -25
 
 cd "$REPO_ROOT/week_12"
 echo ""
