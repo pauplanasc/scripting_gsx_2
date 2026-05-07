@@ -22,7 +22,7 @@ echo "===================================================="
 echo ""
 echo "📊 FASE 1 - Estado inicial"
 echo "----------------------------------------------------"
-minikube status >/dev/null 2>&1 || { echo "⏳ Minikube parado, arrancando..."; minikube start; }
+minikube status >/dev/null 2>&1 || { echo "⏳ Minikube parado, arrancando..."; minikube start --cni=calico --memory=2800 --driver=docker; }
 echo "✅ Minikube activo"
 echo ""
 echo "Namespaces actuales con prefijo gsx-:"

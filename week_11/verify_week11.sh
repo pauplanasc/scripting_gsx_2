@@ -32,15 +32,24 @@ kubectl rollout status deployment/backend -n "$NAMESPACE" --timeout=120s >/dev/n
 kubectl rollout status deployment/nginx   -n "$NAMESPACE" --timeout=120s >/dev/null
 echo "✅ Alta Disponibilidad: redis, backend y nginx Ready."
 
-# 4. Conectividad externa
+# 4. Conectividad externa (con retry: tras un minikube restart los Services pueden
+#    tardar unos segundos en estabilizar el routing aunque los pods esten Ready).
 MINIKUBE_IP=$(minikube ip)
 NODE_PORT=$(kubectl get svc nginx-service -n "$NAMESPACE" -o jsonpath='{.spec.ports[0].nodePort}')
-RESPONSE=$(curl -s "http://$MINIKUBE_IP:$NODE_PORT" || echo "Fallo")
+
+RESPONSE=""
+for attempt in 1 2 3 4 5; do
+    RESPONSE=$(curl -s --max-time 5 "http://$MINIKUBE_IP:$NODE_PORT" || echo "")
+    if [[ "$RESPONSE" == *"Entorno"* && "$RESPONSE" == *"visitante"* ]]; then
+        break
+    fi
+    sleep 3
+done
 
 if [[ "$RESPONSE" == *"Entorno"* && "$RESPONSE" == *"visitante"* ]]; then
     echo "✅ Conectividad: Nginx responde por NodePort $NODE_PORT y Redis está vivo (contador OK)."
 else
-    echo "❌ ERROR: respuesta inesperada del stack:"
+    echo "❌ ERROR: respuesta inesperada del stack tras 5 intentos:"
     echo "    $RESPONSE"
     exit 1
 fi
