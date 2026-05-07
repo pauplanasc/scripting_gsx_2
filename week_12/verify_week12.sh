@@ -74,11 +74,14 @@ else
     pass "nginx -> Internet (1.1.1.1:443) bloqueado"
 fi
 
-# --- Test 6: DNS funciona (debe pasar gracias a 01-allow-dns-egress) ---
-if kubectl exec -n "$NS" "$NGINX_POD" -- nslookup backend 2>/dev/null | grep -q "Address"; then
-    pass "DNS resolucion 'backend' (allow-dns-egress activa)"
+# --- Test 6: DNS funciona via FQDN (debe pasar gracias a 01-allow-dns-egress) ---
+# Usamos wget al FQDN completo en lugar de nslookup: nslookup de BusyBox
+# no siempre honra search domains, asi que el FQDN es mas fiable.
+# Si DNS no estuviera funcionando, ningun otro test habria pasado.
+if kubectl exec -n "$NS" "$NGINX_POD" -- wget -q -T 3 -O- "http://backend.${NS}.svc.cluster.local:3000" 2>/dev/null | grep -q "Entorno"; then
+    pass "DNS resuelve FQDN (backend.${NS}.svc.cluster.local) y allow-dns-egress activa"
 else
-    fail "DNS no resuelve, revisa la policy 01-allow-dns-egress"
+    fail "FQDN backend.${NS}.svc.cluster.local no resuelve o no responde"
 fi
 
 echo "----------------------------------------------------"
